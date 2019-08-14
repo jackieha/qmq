@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 public class BrokerRegisterService implements Disposable {
     private static final Logger LOG = LoggerFactory.getLogger(BrokerRegisterService.class);
 
-    private static final long TIMEOUT_MS = TimeUnit.SECONDS.toMillis(5);
+    private static final long TIMEOUT_MS = TimeUnit.SECONDS.toMillis(2);
     private static final int HEARTBEAT_DELAY_SECONDS = 10;
 
     private final ScheduledExecutorService heartbeatScheduler;
@@ -56,7 +56,10 @@ public class BrokerRegisterService implements Disposable {
         this.heartbeatScheduler = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("broker-register-heartbeat"));
         this.locator = locator;
         this.client = NettyClient.getClient();
-        this.client.start(new NettyClientConfig());
+        NettyClientConfig config = new NettyClientConfig();
+        config.setClientChannelMaxIdleTimeSeconds(HEARTBEAT_DELAY_SECONDS * 2);
+        config.setClientWorkerThreads(1);
+        this.client.start(config);
         this.port = port;
         this.brokerAddress = BrokerConfig.getBrokerAddress() + ":" + port;
         this.brokerState = BrokerState.NRW.getCode();
@@ -86,16 +89,20 @@ public class BrokerRegisterService implements Disposable {
     }
 
     private void heartbeat() {
-        Datagram datagram = null;
         try {
-            datagram = client.sendSync(endpoint, buildRegisterDatagram(BrokerRequestType.HEARTBEAT), TIMEOUT_MS);
-        } catch (Exception e) {
-            LOG.error("Send HEARTBEAT message to meta server failed", e);
-            repickEndpoint();
-        } finally {
-            if (datagram != null) {
-                datagram.release();
+            Datagram datagram = null;
+            try {
+                datagram = client.sendSync(endpoint, buildRegisterDatagram(BrokerRequestType.HEARTBEAT), TIMEOUT_MS);
+            } catch (Exception e) {
+                LOG.error("Send HEARTBEAT message to meta server failed", e);
+                repickEndpoint();
+            } finally {
+                if (datagram != null) {
+                    datagram.release();
+                }
             }
+        }catch (Exception e){
+            LOG.error("Heartbeat error", e);
         }
     }
 

@@ -18,6 +18,7 @@ package qunar.tc.qmq.store;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import qunar.tc.qmq.store.buffer.SegmentBuffer;
 import sun.misc.Cleaner;
 import sun.nio.ch.DirectBuffer;
 
@@ -97,12 +98,12 @@ public class LogSegment extends ReferenceObject {
         }
 
         try {
-            fileChannel.position(currentPos);
-            fileChannel.write(data);
+            fileChannel.write(data, currentPos);
+            this.wrotePosition.addAndGet(size);
         } catch (Throwable e) {
             LOG.error("Append data to log segment failed.", e);
+            return false;
         }
-        this.wrotePosition.addAndGet(size);
         return true;
     }
 

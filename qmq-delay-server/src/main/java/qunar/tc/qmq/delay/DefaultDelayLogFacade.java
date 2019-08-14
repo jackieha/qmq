@@ -16,7 +16,6 @@
 
 package qunar.tc.qmq.delay;
 
-import io.netty.buffer.ByteBuf;
 import qunar.tc.qmq.delay.base.LongHashSet;
 import qunar.tc.qmq.delay.base.ReceivedDelayMessage;
 import qunar.tc.qmq.delay.base.ReceivedResult;
@@ -30,7 +29,7 @@ import qunar.tc.qmq.delay.store.model.RawMessageExtend;
 import qunar.tc.qmq.delay.store.model.ScheduleSetRecord;
 import qunar.tc.qmq.delay.store.visitor.LogVisitor;
 import qunar.tc.qmq.delay.wheel.WheelLoadCursor;
-import qunar.tc.qmq.store.SegmentBuffer;
+import qunar.tc.qmq.store.buffer.SegmentBuffer;
 import qunar.tc.qmq.sync.DelaySyncRequest;
 
 import java.nio.ByteBuffer;
@@ -51,7 +50,7 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     private final LogCleaner cleaner;
     private final MessageLogReplayer replayer;
 
-    public DefaultDelayLogFacade(final StoreConfiguration config, final Function<ByteBuf, Boolean> func) {
+    public DefaultDelayLogFacade(final StoreConfiguration config, final Function<ScheduleIndex, Boolean> func) {
         this.messageLog = new MessageLog(config);
         this.scheduleLog = new ScheduleLog(config);
         this.dispatchLog = new DispatchLog(config);
@@ -80,7 +79,7 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     }
 
     @Override
-    public long getDispatchLogMaxOffset(final int dispatchSegmentBaseOffset) {
+    public long getDispatchLogMaxOffset(final long dispatchSegmentBaseOffset) {
         return dispatchLog.getMaxOffset(dispatchSegmentBaseOffset);
     }
 
@@ -95,7 +94,7 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     }
 
     @Override
-    public boolean appendDispatchLogData(final long startOffset, final int baseOffset, final ByteBuffer body) {
+    public boolean appendDispatchLogData(final long startOffset, final long baseOffset, final ByteBuffer body) {
         return dispatchLog.appendData(startOffset, baseOffset, body);
     }
 
@@ -105,7 +104,7 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     }
 
     @Override
-    public SegmentBuffer getDispatchLogs(final int segmentBaseOffset, final long dispatchLogOffset) {
+    public SegmentBuffer getDispatchLogs(final long segmentBaseOffset, final long dispatchLogOffset) {
         return dispatchLog.getDispatchLogData(segmentBaseOffset, dispatchLogOffset);
     }
 
@@ -125,8 +124,8 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     }
 
     @Override
-    public List<ScheduleSetRecord> recoverLogRecord(final List<ByteBuf> pureRecords) {
-        return scheduleLog.recoverLogRecord(pureRecords);
+    public List<ScheduleSetRecord> recoverLogRecord(final List<ScheduleIndex> indexList) {
+        return scheduleLog.recoverLogRecord(indexList);
     }
 
     @Override
@@ -140,27 +139,27 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     }
 
     @Override
-    public DispatchLogSegment lowerDispatchSegment(final int baseOffset) {
+    public DispatchLogSegment lowerDispatchSegment(final long baseOffset) {
         return dispatchLog.lowerSegment(baseOffset);
     }
 
     @Override
-    public ScheduleSetSegment loadScheduleLogSegment(final int segmentBaseOffset) {
+    public ScheduleSetSegment loadScheduleLogSegment(final long segmentBaseOffset) {
         return scheduleLog.loadSegment(segmentBaseOffset);
     }
 
     @Override
-    public WheelLoadCursor.Cursor loadUnDispatch(final ScheduleSetSegment setSegment, final LongHashSet dispatchedSet, final Consumer<ByteBuf> refresh) {
+    public WheelLoadCursor.Cursor loadUnDispatch(final ScheduleSetSegment setSegment, final LongHashSet dispatchedSet, final Consumer<ScheduleIndex> refresh) {
         return scheduleLog.loadUnDispatch(setSegment, dispatchedSet, refresh);
     }
 
     @Override
-    public int higherScheduleBaseOffset(int index) {
+    public long higherScheduleBaseOffset(long index) {
         return scheduleLog.higherBaseOffset(index);
     }
 
     @Override
-    public int higherDispatchLogBaseOffset(int segmentBaseOffset) {
+    public long higherDispatchLogBaseOffset(long segmentBaseOffset) {
         return dispatchLog.higherBaseOffset(segmentBaseOffset);
     }
 
@@ -170,7 +169,7 @@ public class DefaultDelayLogFacade implements DelayLogFacade {
     }
 
     @Override
-    public AppendLogResult<ByteBuf> appendScheduleLog(LogRecord event) {
+    public AppendLogResult<ScheduleIndex> appendScheduleLog(LogRecord event) {
         return scheduleLog.append(event);
     }
 

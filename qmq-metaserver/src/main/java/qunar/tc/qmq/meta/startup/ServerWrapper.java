@@ -20,23 +20,24 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qunar.tc.qmq.common.Disposable;
 import qunar.tc.qmq.configuration.DynamicConfig;
-import qunar.tc.qmq.configuration.DynamicConfigLoader;
+import qunar.tc.qmq.jdbc.JdbcTemplateHolder;
+import qunar.tc.qmq.meta.cache.BrokerMetaManager;
 import qunar.tc.qmq.meta.cache.CachedMetaInfoManager;
 import qunar.tc.qmq.meta.cache.CachedOfflineStateManager;
 import qunar.tc.qmq.meta.management.*;
 import qunar.tc.qmq.meta.processor.BrokerAcquireMetaProcessor;
 import qunar.tc.qmq.meta.processor.BrokerRegisterProcessor;
 import qunar.tc.qmq.meta.processor.ClientRegisterProcessor;
+import qunar.tc.qmq.meta.route.ReadonlyBrokerGroupManager;
 import qunar.tc.qmq.meta.route.SubjectRouter;
 import qunar.tc.qmq.meta.route.impl.DefaultSubjectRouter;
 import qunar.tc.qmq.meta.route.impl.DelayRouter;
-import qunar.tc.qmq.meta.store.BrokerStore;
-import qunar.tc.qmq.meta.store.ClientDbConfigurationStore;
-import qunar.tc.qmq.meta.store.JdbcTemplateHolder;
-import qunar.tc.qmq.meta.store.Store;
+import qunar.tc.qmq.meta.service.ReadonlyBrokerGroupSettingService;
+import qunar.tc.qmq.meta.store.*;
 import qunar.tc.qmq.meta.store.impl.BrokerStoreImpl;
 import qunar.tc.qmq.meta.store.impl.ClientDbConfigurationStoreImpl;
 import qunar.tc.qmq.meta.store.impl.DatabaseStore;
+import qunar.tc.qmq.meta.store.impl.ReadonlyBrokerGroupSettingStoreImpl;
 import qunar.tc.qmq.netty.DefaultConnectionEventHandler;
 import qunar.tc.qmq.netty.NettyServer;
 import qunar.tc.qmq.protocol.CommandCode;
@@ -44,6 +45,8 @@ import qunar.tc.qmq.protocol.CommandCode;
 import javax.servlet.ServletContext;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * @author yunfeng.yang
@@ -67,15 +70,21 @@ public class ServerWrapper implements Disposable {
         final int port = config.getInt("meta.server.port", DEFAULT_META_SERVER_PORT);
         context.setAttribute("port", port);
 
-        final Store store = new DatabaseStore();
-        final BrokerStore brokerStore = new BrokerStoreImpl(JdbcTemplateHolder.getOrCreate());
+        JdbcTemplate jdbcTemplate = JdbcTemplateHolder.getOrCreate();
+        final Store store = new DatabaseStore(jdbcTemplate);
+        final BrokerStore brokerStore = new BrokerStoreImpl(jdbcTemplate);
+        final BrokerMetaManager brokerMetaManager = BrokerMetaManager.getInstance();
+        brokerMetaManager.init(brokerStore);
 
-        final CachedMetaInfoManager cachedMetaInfoManager = new CachedMetaInfoManager(config, store);
+        final ReadonlyBrokerGroupSettingStore readonlyBrokerGroupSettingStore = new ReadonlyBrokerGroupSettingStoreImpl(jdbcTemplate);
+        final CachedMetaInfoManager cachedMetaInfoManager = new CachedMetaInfoManager(config, store, readonlyBrokerGroupSettingStore);
 
         final SubjectRouter subjectRouter = createSubjectRouter(cachedMetaInfoManager, store);
-        final ClientRegisterProcessor clientRegisterProcessor = new ClientRegisterProcessor(subjectRouter, CachedOfflineStateManager.SUPPLIER.get(), store);
+        final ReadonlyBrokerGroupManager readonlyBrokerGroupManager = new ReadonlyBrokerGroupManager(cachedMetaInfoManager);
+        final ClientRegisterProcessor clientRegisterProcessor = new ClientRegisterProcessor(subjectRouter, CachedOfflineStateManager.SUPPLIER.get(), store, readonlyBrokerGroupManager);
         final BrokerRegisterProcessor brokerRegisterProcessor = new BrokerRegisterProcessor(config, cachedMetaInfoManager, store);
-        final BrokerAcquireMetaProcessor brokerAcquireMetaProcessor = new BrokerAcquireMetaProcessor(new BrokerStoreImpl(JdbcTemplateHolder.getOrCreate()));
+        final BrokerAcquireMetaProcessor brokerAcquireMetaProcessor = new BrokerAcquireMetaProcessor(new BrokerStoreImpl(jdbcTemplate));
+        final ReadonlyBrokerGroupSettingService readonlyBrokerGroupSettingService = new ReadonlyBrokerGroupSettingService(readonlyBrokerGroupSettingStore);
 
         final NettyServer metaNettyServer = new NettyServer("meta", Runtime.getRuntime().availableProcessors(), port, new DefaultConnectionEventHandler("meta"));
         metaNettyServer.registerProcessor(CommandCode.CLIENT_REGISTER, clientRegisterProcessor);
@@ -96,8 +105,12 @@ public class ServerWrapper implements Disposable {
         actions.register("AddNewSubject", new TokenVerificationAction(new AddNewSubjectAction(store)));
         actions.register("ExtendSubjectRoute", new TokenVerificationAction(new ExtendSubjectRouteAction(store, cachedMetaInfoManager)));
         actions.register("AddDb", new TokenVerificationAction(new RegisterClientDbAction(clientDbConfigurationStore)));
+        actions.register("MarkReadonlyBrokerGroup", new TokenVerificationAction(new MarkReadonlyBrokerGroupAction(readonlyBrokerGroupSettingService)));
+        actions.register("UnMarkReadonlyBrokerGroup", new TokenVerificationAction(new UnMarkReadonlyBrokerGroupAction(readonlyBrokerGroupSettingService)));
+        actions.register("ResetOffset", new TokenVerificationAction(new ResetOffsetAction(store)));
 
         resources.add(cachedMetaInfoManager);
+        resources.add(brokerMetaManager);
         resources.add(metaNettyServer);
     }
 

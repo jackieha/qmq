@@ -21,17 +21,17 @@ import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qunar.tc.qmq.meta.BrokerRole;
 import qunar.tc.qmq.base.SyncRequest;
 import qunar.tc.qmq.configuration.BrokerConfig;
 import qunar.tc.qmq.configuration.DynamicConfig;
+import qunar.tc.qmq.meta.BrokerRole;
 import qunar.tc.qmq.protocol.CommandCode;
 import qunar.tc.qmq.protocol.Datagram;
 import qunar.tc.qmq.protocol.PayloadHolder;
 import qunar.tc.qmq.protocol.RemotingHeader;
 import qunar.tc.qmq.store.DataTransfer;
 import qunar.tc.qmq.store.LogSegment;
-import qunar.tc.qmq.store.SegmentBuffer;
+import qunar.tc.qmq.store.buffer.SegmentBuffer;
 import qunar.tc.qmq.sync.SyncType;
 import qunar.tc.qmq.util.RemotingBuilder;
 import qunar.tc.qmq.utils.HeaderSerializer;
@@ -61,7 +61,7 @@ abstract class AbstractLogSyncWorker implements SyncProcessor {
     public void process(SyncRequestEntry entry) {
         final SyncRequest syncRequest = entry.getSyncRequest();
         final SegmentBuffer result = getSyncLog(syncRequest);
-        if (result == null || result.getSize() <= 0) {
+		if (result == null) {
             final long timeout = config.getLong("message.sync.timeout.ms", 10L);
             ServerTimerUtil.newTimeout(new SyncRequestTimeoutTask(entry, this), timeout, TimeUnit.MILLISECONDS);
             return;
@@ -75,8 +75,9 @@ abstract class AbstractLogSyncWorker implements SyncProcessor {
         final SyncRequest syncRequest = entry.getSyncRequest();
         final SegmentBuffer result = getSyncLog(syncRequest);
 
+        int syncType = syncRequest.getSyncType();
         if (result == null || result.getSize() <= 0) {
-            long offset = syncRequest.getSyncType() == SyncType.message.getCode() ? syncRequest.getMessageLogOffset() : syncRequest.getActionLogOffset();
+            long offset = syncType == SyncType.message.getCode() ? syncRequest.getMessageLogOffset() : syncRequest.getActionLogOffset();
             writeEmpty(entry, offset);
             return;
         }
@@ -111,10 +112,9 @@ abstract class AbstractLogSyncWorker implements SyncProcessor {
                 size = batchSize;
             }
             final RemotingHeader header = RemotingBuilder.buildResponseHeader(CommandCode.SUCCESS, entry.getRequestHeader());
-            ByteBuffer headerBuffer = HeaderSerializer.serialize(header, SYNC_HEADER_LEN + size, SYNC_HEADER_LEN);
-            headerBuffer.putInt(size);
-            headerBuffer.putLong(result.getStartOffset());
-            headerBuffer.flip();
+            ByteBuf headerBuffer = HeaderSerializer.serialize(header, SYNC_HEADER_LEN + size, SYNC_HEADER_LEN);
+            headerBuffer.writeInt(size);
+            headerBuffer.writeLong(result.getStartOffset());
             entry.getCtx().writeAndFlush(new DataTransfer(headerBuffer, result, size));
         } catch (Exception e) {
             result.release();

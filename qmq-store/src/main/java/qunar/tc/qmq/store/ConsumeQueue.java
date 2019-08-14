@@ -44,7 +44,7 @@ public class ConsumeQueue {
         this.storage = storage;
         this.subject = subject;
         this.group = group;
-        this.nextSequence = new AtomicLong(lastMaxSequence + 1);
+        this.nextSequence = new AtomicLong(lastMaxSequence);
     }
 
     public synchronized void setNextSequence(long nextSequence) {
@@ -63,7 +63,7 @@ public class ConsumeQueue {
             return storage.pollMessages(subject, currentSequence, maxMessages, this::isDelayReached);
         } else {
             final GetMessageResult result = storage.pollMessages(subject, currentSequence, maxMessages);
-            long actualSequence = result.getNextBeginOffset() - result.getSegmentBuffers().size();
+            long actualSequence = result.getNextBeginSequence() - result.getBuffers().size();
             long delta = actualSequence - currentSequence;
             if (delta > 0) {
                 QMon.expiredMessagesCountInc(subject, group, delta);
@@ -73,7 +73,7 @@ public class ConsumeQueue {
         }
     }
 
-    private boolean isDelayReached(ConsumerLogEntry entry) {
+    private boolean isDelayReached(MessageFilter.WithTimestamp entry) {
         final int delayMillis = storage.getStorageConfig().getRetryDelaySeconds() * 1000;
         return entry.getTimestamp() + delayMillis <= System.currentTimeMillis();
     }

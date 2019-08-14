@@ -26,6 +26,7 @@ import qunar.tc.qmq.meta.BrokerCluster;
 import qunar.tc.qmq.meta.BrokerGroup;
 import qunar.tc.qmq.meta.BrokerState;
 import qunar.tc.qmq.meta.cache.CachedOfflineStateManager;
+import qunar.tc.qmq.meta.route.ReadonlyBrokerGroupManager;
 import qunar.tc.qmq.meta.route.SubjectRouter;
 import qunar.tc.qmq.meta.store.Store;
 import qunar.tc.qmq.meta.utils.ClientLogUtils;
@@ -38,6 +39,7 @@ import qunar.tc.qmq.protocol.consumer.MetaInfoResponse;
 import qunar.tc.qmq.util.RemotingBuilder;
 import qunar.tc.qmq.utils.PayloadHolderUtils;
 import qunar.tc.qmq.utils.RetrySubjectUtils;
+import qunar.tc.qmq.utils.SubjectUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,16 +55,18 @@ class ClientRegisterWorker implements ActorSystem.Processor<ClientRegisterProces
     private final ActorSystem actorSystem;
     private final Store store;
     private final CachedOfflineStateManager offlineStateManager;
+    private final ReadonlyBrokerGroupManager readonlyBrokerGroupManager;
 
-    ClientRegisterWorker(final SubjectRouter subjectRouter, final CachedOfflineStateManager offlineStateManager, final Store store) {
+    ClientRegisterWorker(final SubjectRouter subjectRouter, final CachedOfflineStateManager offlineStateManager, final Store store, ReadonlyBrokerGroupManager readonlyBrokerGroupManager) {
         this.subjectRouter = subjectRouter;
-        this.actorSystem = new ActorSystem("qmq-meta");
+        this.readonlyBrokerGroupManager = readonlyBrokerGroupManager;
+        this.actorSystem = new ActorSystem("qmq_meta");
         this.offlineStateManager = offlineStateManager;
         this.store = store;
     }
 
     void register(ClientRegisterProcessor.ClientRegisterMessage message) {
-        actorSystem.dispatch("client-register-" + message.getMetaInfoRequest().getSubject(), message, this);
+        actorSystem.dispatch("client_register_" + message.getMetaInfoRequest().getSubject(), message, this);
     }
 
     @Override
@@ -76,6 +80,9 @@ class ClientRegisterWorker implements ActorSystem.Processor<ClientRegisterProces
 
     private MetaInfoResponse handleClientRegister(final MetaInfoRequest request) {
         final String realSubject = RetrySubjectUtils.getRealSubject(request.getSubject());
+		if (SubjectUtils.isInValid(realSubject)) {
+			return buildResponse(request, -2, OnOfflineState.OFFLINE, new BrokerCluster(new ArrayList<>()));
+		}
         final int clientRequestType = request.getRequestType();
 
         try {
@@ -84,7 +91,8 @@ class ClientRegisterWorker implements ActorSystem.Processor<ClientRegisterProces
             }
 
             final List<BrokerGroup> brokerGroups = subjectRouter.route(realSubject, request);
-            final List<BrokerGroup> filteredBrokerGroups = filterBrokerGroups(brokerGroups);
+            List<BrokerGroup> removedReadonlyGroups = readonlyBrokerGroupManager.disableReadonlyBrokerGroup(realSubject, request.getClientTypeCode(), brokerGroups);
+            final List<BrokerGroup> filteredBrokerGroups = filterBrokerGroups(removedReadonlyGroups);
             final OnOfflineState clientState = offlineStateManager.queryClientState(request.getClientId(), request.getSubject(), request.getConsumerGroup());
 
             ClientLogUtils.log(realSubject,
@@ -129,18 +137,16 @@ class ClientRegisterWorker implements ActorSystem.Processor<ClientRegisterProces
 
     private void writeResponse(final ClientRegisterProcessor.ClientRegisterMessage message, final MetaInfoResponse response) {
         final RemotingHeader header = message.getHeader();
-        final MetaInfoResponsePayloadHolder payloadHolder = new MetaInfoResponsePayloadHolder(response, header.getVersion());
+        final MetaInfoResponsePayloadHolder payloadHolder = new MetaInfoResponsePayloadHolder(response);
         final Datagram datagram = RemotingBuilder.buildResponseDatagram(CommandCode.SUCCESS, header, payloadHolder);
         message.getCtx().writeAndFlush(datagram);
     }
 
     private static class MetaInfoResponsePayloadHolder implements PayloadHolder {
         private final MetaInfoResponse response;
-        private final short version;
 
-        MetaInfoResponsePayloadHolder(MetaInfoResponse response, short version) {
+        MetaInfoResponsePayloadHolder(MetaInfoResponse response) {
             this.response = response;
-            this.version = version;
         }
 
         @Override

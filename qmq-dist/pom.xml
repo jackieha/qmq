@@ -6,7 +6,7 @@
     <parent>
         <artifactId>qmq-parent</artifactId>
         <groupId>com.qunar.qmq</groupId>
-        <version>1.1.0</version>
+        <version>1.1.7</version>
     </parent>
 
     <artifactId>qmq-dist</artifactId>
@@ -31,6 +31,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>qmq-watchdog</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>qmq-gateway</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

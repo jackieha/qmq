@@ -1,6 +1,6 @@
 [上一页](producer.md)
 [回目录](../../README.md)
-[下一页](delay.md)
+[下一页](exactlyonce.md)
 
 
 # 消费消息(consumer)
@@ -22,13 +22,21 @@ QMQ除了提供使用API来消费消息的方式外，还提供了跟Spring结�
 
     <context:annotation-config />
     <context:component-scan base-package="qunar.tc.qmq.demo.consumer.*" />
+
+    <!-- 供处理消息用的线程池 -->
+    <bean id="qmqExecutor" class="org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean">
+        <property name="corePoolSize" value="2" />
+        <property name="maxPoolSize" value="2" />
+        <property name="queueCapacity" value="1000" />
+        <property name="threadNamePrefix" value="qmq-process" />
+    </bean>
 </beans>
 ```
 
 当然，如果你的应用使用的是Spring annotation的配置方式，没有xml，那么也可以使用@EnableQmq的方式配置
 ```java
 @Configuration
-@EnableQmq(appCode="your app", metaServer="http://meta server/meta/address")
+@EnableQmq(appCode="your app", metaServer="http://<meta server address>/meta/address")
 public class Config{}
 ```
 
@@ -96,12 +104,13 @@ Listener的方式与@QmqConsumer提供的功能基本类似
 //推荐一个应用里只创建一个实例
 MessageConsumerProvider consumer = new MessageConsumerProvider();
 consumer.setAppCode("your app");
-consumer.setMetaServer("http://meta server/meta/address");
+consumer.setMetaServer("http://<meta server address>/meta/address");
 consumer.init();
 
+//ThreadPoolExecutor根据实际业务场景进行配置
 consumer.addListener("your subject", "group", (m) -> {
     //process message
-}, new ThreadPoolExecutor(2,2,));
+}, new ThreadPoolExecutor(2,2,1,TimeUnit.MINUTES,new LinkedBlockingQueue<Runnable>(100)));
 ```
 
 ### Pull API
@@ -112,7 +121,7 @@ Pull API是最基础的API，需要考虑更多情况，如无必要，我们推
 //推荐一个应用里只创建一个实例
 MessageConsumerProvider consumer = new MessageConsumerProvider();
 consumer.setAppCode("your app");
-consumer.setMetaServer("http://meta server/meta/address");
+consumer.setMetaServer("http://<meta server address>/meta/address");
 consumer.init();
 
 PullConsumer pullConsumer = consumer.getOrCreatePullConsumer("your subject", "group", false);
@@ -128,6 +137,11 @@ for(Message message : messages){
 }
 ```
 
+* 注意
+```
+QMQ的Message.setProperty(key, value)如果value是字符串，则value的大小默认不能超过32K，如果你需要传输超大的字符串，请务必使用message.setLargeString(key, value)，这样你甚至可以传输十几兆的内容了，但是消费消息的时候也需要使用message.getLargeString(key)。
+```
+
 [上一页](producer.md)
 [回目录](../../README.md)
-[下一页](delay.md)
+[下一页](exactlyonce.md)

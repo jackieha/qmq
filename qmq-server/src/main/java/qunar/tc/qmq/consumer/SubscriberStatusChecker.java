@@ -55,7 +55,7 @@ public class SubscriberStatusChecker implements ActorSystem.Processor<Subscriber
         this.config = config;
         this.storage = storage;
         this.consumerSequenceManager = consumerSequenceManager;
-        this.actorSystem = new ActorSystem("consumer-consumers", 4, false);
+        this.actorSystem = new ActorSystem("consumers", 4, false);
     }
 
     public void init() {
@@ -82,7 +82,7 @@ public class SubscriberStatusChecker implements ActorSystem.Processor<Subscriber
     }
 
     private void initSubscribers() {
-        final Collection<ConsumerGroupProgress> progresses = storage.allConsumerGroupProgresses();
+        final Collection<ConsumerGroupProgress> progresses = storage.allConsumerGroupProgresses().values();
         progresses.forEach(progress -> {
             if (progress.isBroadcast()) {
                 return;

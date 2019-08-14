@@ -5,15 +5,11 @@
     <parent>
         <artifactId>qmq-parent</artifactId>
         <groupId>com.qunar.qmq</groupId>
-        <version>1.1.0</version>
+        <version>1.1.7</version>
     </parent>
 
     <artifactId>qmq-metaserver</artifactId>
     <packaging>jar</packaging>
-
-    <properties>
-        <maven_deploy_skip>true</maven_deploy_skip>
-    </properties>
 
     <dependencies>
         <dependency>
@@ -23,10 +19,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>qmq-remoting</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>qmq-client</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>
@@ -95,8 +87,4 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
     </dependencies>
-
-    <build>
-        <finalName>ROOT</finalName>
-    </build>
 </project>

@@ -21,7 +21,11 @@ import org.slf4j.LoggerFactory;
 import qunar.tc.qmq.delay.store.model.LogRecord;
 import qunar.tc.qmq.delay.store.model.LogRecordHeader;
 import qunar.tc.qmq.delay.store.model.MessageLogRecord;
-import qunar.tc.qmq.store.*;
+import qunar.tc.qmq.store.LogManager;
+import qunar.tc.qmq.store.LogSegment;
+import qunar.tc.qmq.store.MagicCode;
+import qunar.tc.qmq.store.MagicCodeSupport;
+import qunar.tc.qmq.store.buffer.SegmentBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -38,7 +42,8 @@ import static qunar.tc.qmq.delay.store.model.MessageLogAttrEnum.ATTR_SKIP_RECORD
 public class DelayMessageLogVisitor implements LogVisitor<LogRecord> {
     private static final Logger LOGGER = LoggerFactory.getLogger(DelayMessageLogVisitor.class);
 
-    private static final EmptyLogRecord EMPTY_LOG_RECORD = new EmptyLogRecord();
+    public static final EmptyLogRecord EMPTY_LOG_RECORD = new EmptyLogRecord();
+
     private static final int MIN_RECORD_BYTES = 13;
 
     private final AtomicInteger visitedBufferSize = new AtomicInteger(0);
@@ -104,7 +109,7 @@ public class DelayMessageLogVisitor implements LogVisitor<LogRecord> {
         // magic
         final int magic = buffer.getInt();
         if (!MagicCodeSupport.isValidMessageLogMagicCode(magic)) {
-//            visitedBufferSize.set(currentBuffer.getSize());
+            visitedBufferSize.set(currentBuffer.getSize());
             return Optional.of(EMPTY_LOG_RECORD);
         }
 

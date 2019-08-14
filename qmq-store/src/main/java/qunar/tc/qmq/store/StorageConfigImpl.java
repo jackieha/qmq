@@ -32,6 +32,8 @@ public class StorageConfigImpl implements StorageConfig {
     private static final String CONSUMER_LOG = "consumerlog";
     private static final String PULL_LOG = "pulllog";
     private static final String ACTION_LOG = "actionlog";
+    private static final String INDEX_LOG = "indexlog";
+    private static final String SMT = "smt";
 
     private static final long MS_PER_HOUR = TimeUnit.HOURS.toMillis(1);
 
@@ -89,19 +91,30 @@ public class StorageConfigImpl implements StorageConfig {
         return buildStorePath(ACTION_LOG);
     }
 
+    @Override
+    public String getIndexLogStorePath() {
+        return buildStorePath(INDEX_LOG);
+    }
+
     private String buildStorePath(final String name) {
         final String root = config.getString(BrokerConstants.STORE_ROOT, BrokerConstants.LOG_STORE_ROOT);
         return new File(root, name).getAbsolutePath();
     }
 
     @Override
-    public boolean isDeleteExpiredLogsEnable() {
-        return config.getBoolean(BrokerConstants.ENABLE_DELETE_EXPIRED_LOGS, false);
+    public long getLogRetentionMs() {
+        final int retentionHours = config.getInt(BrokerConstants.PULL_LOG_RETENTION_HOURS, BrokerConstants.DEFAULT_PULL_LOG_RETENTION_HOURS);
+        return retentionHours * MS_PER_HOUR;
     }
 
     @Override
-    public long getLogRetentionMs() {
-        final int retentionHours = config.getInt(BrokerConstants.PULL_LOG_RETENTION_HOURS, BrokerConstants.DEFAULT_PULL_LOG_RETENTION_HOURS);
+    public String getSMTStorePath() {
+        return buildStorePath(SMT);
+    }
+
+    @Override
+    public long getSMTRetentionMs() {
+        final int retentionHours = config.getInt(BrokerConstants.SMT_RETENTION_HOURS, BrokerConstants.DEFAULT_SMT_RETENTION_HOURS);
         return retentionHours * MS_PER_HOUR;
     }
 
@@ -123,5 +136,34 @@ public class StorageConfigImpl implements StorageConfig {
     @Override
     public long getMessageCheckpointInterval() {
         return config.getLong(BrokerConstants.MESSAGE_CHECKPOINT_INTERVAL, BrokerConstants.DEFAULT_MESSAGE_CHECKPOINT_INTERVAL);
+    }
+
+    @Override
+    public int getMaxReservedMemTable() {
+        return config.getInt(BrokerConstants.MAX_RESERVED_MEMTABLE, BrokerConstants.DEFAULT_MAX_RESERVED_MEMTABLE);
+    }
+
+    @Override
+    public int getMaxActiveMemTable() {
+        return config.getInt(BrokerConstants.MAX_ACTIVE_MEMTABLE, BrokerConstants.DEFAULT_MAX_ACTIVE_MEMTABLE);
+    }
+
+    @Override
+    public boolean isConsumerLogV2Enable() {
+        return config.getBoolean(BrokerConstants.CONSUMER_LOG_V2_ENABLE, false);
+    }
+
+    @Override
+    public boolean isSMTEnable() {
+        if (!isConsumerLogV2Enable()) {
+            return false;
+        }
+
+        return config.getBoolean(BrokerConstants.SMT_ENABLE, false);
+    }
+
+    @Override
+    public long getLogDispatcherPauseMillis() {
+        return config.getLong(BrokerConstants.LOG_DISPATCHER_PAUSE_MILLIS, 5);
     }
 }

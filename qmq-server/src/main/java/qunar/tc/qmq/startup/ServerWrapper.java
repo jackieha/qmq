@@ -81,7 +81,7 @@ public class ServerWrapper implements Disposable {
         this.resources = new ArrayList<>();
     }
 
-    public void start() {
+    public void start(boolean autoOnline) {
         LOG.info("qmq server init started");
         register();
         createStorage();
@@ -91,8 +91,19 @@ public class ServerWrapper implements Disposable {
         startServerHandlers();
         startConsumerChecker();
         addToResources();
-        online();
+        if (autoOnline)
+            online();
         LOG.info("qmq server init done");
+    }
+
+    public Storage getStorage() {
+        return storage;
+    }
+
+    public boolean isSlave() {
+        // assert BrokerConfig.getBrokerRole() == BrokerRole.STANDBY
+        return BrokerConfig.getBrokerRole() == BrokerRole.SLAVE
+                || BrokerConfig.getBrokerRole() == BrokerRole.DELAY_SLAVE;
     }
 
     private void register() {
@@ -182,7 +193,7 @@ public class ServerWrapper implements Disposable {
         this.consumerSequenceManager = new ConsumerSequenceManager(storage);
         this.subscriberStatusChecker = new SubscriberStatusChecker(config, storage, consumerSequenceManager);
         this.subscriberStatusChecker.init();
-        this.messageStoreWrapper = new MessageStoreWrapper(storage, consumerSequenceManager);
+        this.messageStoreWrapper = new MessageStoreWrapper(config, storage, consumerSequenceManager);
         final OfflineActionHandler handler = new OfflineActionHandler(storage);
         this.storage.registerActionEventListener(handler);
         this.storage.start();
@@ -210,11 +221,13 @@ public class ServerWrapper implements Disposable {
         this.storage.registerEventListener(ConsumerLogWroteEvent.class, pullMessageProcessor);
         final SendMessageProcessor sendMessageProcessor = new SendMessageProcessor(sendMessageWorker);
         final AckMessageProcessor ackMessageProcessor = new AckMessageProcessor(actorSystem, consumerSequenceManager, subscriberStatusChecker);
+        final ConsumerManageProcessor consumerManageProcessor = new ConsumerManageProcessor(storage);
 
         this.nettyServer = new NettyServer("broker", Runtime.getRuntime().availableProcessors(), listenPort, new BrokerConnectionEventHandler());
         this.nettyServer.registerProcessor(CommandCode.SEND_MESSAGE, sendMessageProcessor, sendMessageExecutorService);
         this.nettyServer.registerProcessor(CommandCode.PULL_MESSAGE, pullMessageProcessor);
         this.nettyServer.registerProcessor(CommandCode.ACK_REQUEST, ackMessageProcessor);
+        this.nettyServer.registerProcessor(CommandCode.CONSUME_MANAGE, consumerManageProcessor);
         this.nettyServer.start();
     }
 
@@ -229,7 +242,7 @@ public class ServerWrapper implements Disposable {
         this.resources.add(storage);
     }
 
-    private void online() {
+    public void online() {
         BrokerConfig.markAsWritable();
         brokerRegisterService.healthSwitch(true);
         subscriberStatusChecker.brokerStatusChanged(true);
@@ -263,7 +276,7 @@ public class ServerWrapper implements Disposable {
         }
     }
 
-    private void offline() {
+    public void offline() {
         for (int i = 0; i < 3; ++i) {
             try {
                 brokerRegisterService.healthSwitch(false);

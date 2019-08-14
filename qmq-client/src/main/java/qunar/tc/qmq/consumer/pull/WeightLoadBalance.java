@@ -32,6 +32,8 @@ class WeightLoadBalance {
 
     private static final int MIN_WEIGHT = 5;
 
+    private static final int MIDDLE_WEIGHT = 25;
+
     private static final int MAX_WEIGHT = 150;
 
     private static final int DEFAULT_WEIGHT = 100;
@@ -86,11 +88,17 @@ class WeightLoadBalance {
     }
 
     void noMessage(BrokerGroupInfo group) {
-        update(group, 0.75, DEFAULT_WEIGHT);
+        update(group, 0.5, DEFAULT_WEIGHT);
     }
 
     void fetchedMessages(BrokerGroupInfo group) {
-        update(group, 1.25, DEFAULT_WEIGHT);
+        int current = currentWeight(group);
+        if (current > MIDDLE_WEIGHT) {
+            update(group, 0.75, DEFAULT_WEIGHT);
+        } else {
+            update(group, 1.25, DEFAULT_WEIGHT);
+        }
+
     }
 
     void fetchedEnoughMessages(BrokerGroupInfo group) {
@@ -98,13 +106,18 @@ class WeightLoadBalance {
     }
 
     private void update(BrokerGroupInfo group, double factor, int maxWeight) {
-        Integer weight = weights.get(group);
-        if (weight == null) {
-            weights.putIfAbsent(group, DEFAULT_WEIGHT);
-            weight = weights.get(group);
-        }
-
+        int weight = currentWeight(group);
         weight = Math.min(Math.max((int) (weight * factor), MIN_WEIGHT), maxWeight);
         weights.put(group, weight);
+    }
+
+    private int currentWeight(BrokerGroupInfo group) {
+        Integer weight = weights.get(group);
+        if (weight == null) {
+            Integer old = weights.putIfAbsent(group, DEFAULT_WEIGHT);
+            if (old == null) return DEFAULT_WEIGHT;
+            return old;
+        }
+        return weight;
     }
 }

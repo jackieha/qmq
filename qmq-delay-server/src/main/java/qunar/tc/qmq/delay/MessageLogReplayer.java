@@ -31,29 +31,29 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
-import static qunar.tc.qmq.store.MessageLog.PER_SEGMENT_FILE_SIZE;
-
 /**
  * @author xufeng.deng dennisdxf@gmail.com
  * @since 2018-07-19 17:43
  */
 public class MessageLogReplayer implements Switchable {
     private static final Logger LOGGER = LoggerFactory.getLogger(MessageLogReplayer.class);
+
     private static final RateLimiter LOG_LIMITER = RateLimiter.create((double) 1 / 6);
+
     private final DelayLogFacade facade;
     private final Thread dispatcherThread;
     private final LongAdder iterateFrom;
     private final EventListener<LogRecord> dispatcher;
     private volatile boolean stop = true;
 
-    MessageLogReplayer(final DelayLogFacade facade, final Function<ByteBuf, Boolean> func) {
+    MessageLogReplayer(final DelayLogFacade facade, final Function<ScheduleIndex, Boolean> func) {
         this.facade = facade;
         this.dispatcher = new MessageIterateEventListener(facade, func);
         this.iterateFrom = new LongAdder();
         this.iterateFrom.add(facade.initialMessageIterateFrom());
         this.dispatcherThread = new Thread(new Dispatcher(iterateFrom.longValue()));
 
-        Metrics.gauge("ReplayMessageLogLag", () -> (double) replayMessageLogLag());
+        Metrics.gauge("replayMessageLogLag", () -> (double) replayMessageLogLag());
     }
 
     private long replayMessageLogLag() {
@@ -103,7 +103,7 @@ public class MessageLogReplayer implements Switchable {
                 try {
                     processLog(cursor.get());
                 } catch (Throwable e) {
-                    Metrics.counter("ReplayMessageLogFailed").inc();
+                    Metrics.counter("replayMessageLogFailed").inc();
                     if (LOG_LIMITER.tryAcquire()) {
                         LOGGER.error("replay message log failed, will retry.cursor:{} iterateOffset:{}", cursor.get(), iterateFrom.longValue(), e);
                     }
@@ -117,7 +117,6 @@ public class MessageLogReplayer implements Switchable {
                 if (LOG_LIMITER.tryAcquire()) {
                     LOGGER.info("replay message log failed,cursor < iterate,cursor:{},iterate:{}", cursor, iterate);
                 }
-                if ((iterate % PER_SEGMENT_FILE_SIZE) != 0) throw new RuntimeException("MessageReplayLessThanEx");
                 this.cursor.set(iterate);
             }
 
@@ -131,8 +130,7 @@ public class MessageLogReplayer implements Switchable {
 
             while (true) {
                 final Optional<LogRecord> recordOptional = visitor.nextRecord();
-                if (recordOptional.isPresent()
-                        && recordOptional.get() instanceof DelayMessageLogVisitor.EmptyLogRecord) {
+                if (recordOptional.isPresent() && recordOptional.get() == DelayMessageLogVisitor.EMPTY_LOG_RECORD) {
                     break;
                 }
 

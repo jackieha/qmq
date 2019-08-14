@@ -16,7 +16,6 @@
 
 package qunar.tc.qmq.delay.store.log;
 
-import io.netty.buffer.ByteBuf;
 import qunar.tc.qmq.delay.ScheduleIndex;
 import qunar.tc.qmq.delay.store.model.LogRecord;
 import qunar.tc.qmq.delay.store.model.RecordResult;
@@ -31,34 +30,31 @@ import java.util.Map;
  */
 public class ScheduleSet extends AbstractDelayLog<ScheduleSetSequence> {
 
-    public ScheduleSet(SegmentContainer<RecordResult<ScheduleSetSequence>, LogRecord> container) {
+    ScheduleSet(SegmentContainer<RecordResult<ScheduleSetSequence>, LogRecord> container) {
         super(container);
     }
 
-    ScheduleSetRecord recoverRecord(ByteBuf index) {
-        long scheduleTime = ScheduleIndex.scheduleTime(index);
-        long offset = ScheduleIndex.offset(index);
-        int size = ScheduleIndex.size(index);
-        return ((ScheduleSetSegmentContainer) container).recover(scheduleTime, size, offset);
+    ScheduleSetRecord recoverRecord(ScheduleIndex index) {
+        return ((ScheduleSetSegmentContainer) container).recover(index.getScheduleTime(), index.getSize(), index.getOffset());
     }
 
     public void clean() {
         ((ScheduleSetSegmentContainer) container).clean();
     }
 
-    public ScheduleSetSegment loadSegment(int segmentBaseOffset) {
+    ScheduleSetSegment loadSegment(long segmentBaseOffset) {
         return ((ScheduleSetSegmentContainer) container).loadSegment(segmentBaseOffset);
     }
 
-    synchronized Map<Integer, Long> countSegments() {
+    synchronized Map<Long, Long> countSegments() {
         return ((ScheduleSetSegmentContainer) container).countSegments();
     }
 
-    void reValidate(final Map<Integer, Long> offsets, int singleMessageLimitSize) {
+    void reValidate(final Map<Long, Long> offsets, int singleMessageLimitSize) {
         ((ScheduleSetSegmentContainer) container).reValidate(offsets, singleMessageLimitSize);
     }
 
-    int higherBaseOffset(int low) {
+    long higherBaseOffset(long low) {
         return ((ScheduleSetSegmentContainer) container).higherBaseOffset(low);
     }
 }

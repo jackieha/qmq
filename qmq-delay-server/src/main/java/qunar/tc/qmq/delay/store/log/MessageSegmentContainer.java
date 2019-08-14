@@ -26,10 +26,12 @@ import qunar.tc.qmq.delay.store.model.RawMessageExtend;
 import qunar.tc.qmq.delay.store.visitor.DelayMessageLogVisitor;
 import qunar.tc.qmq.delay.store.visitor.LogVisitor;
 import qunar.tc.qmq.store.*;
+import qunar.tc.qmq.store.buffer.SegmentBuffer;
 
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -56,7 +58,6 @@ public class MessageSegmentContainer implements SegmentContainer<AppendMessageRe
         this.messageAppender = new MessageSegmentContainer.DelayRawMessageAppender();
         this.logManager = new LogManager(new File(config.getMessageLogStorePath())
                 , config.getMessageLogSegmentFileSize()
-                , new StorageConfigImpl(config.getConfig())
                 , new MessageLogSegmentValidator());
         recoverSequence();
     }
@@ -304,14 +305,16 @@ public class MessageSegmentContainer implements SegmentContainer<AppendMessageRe
                 if (recordSize > config.getSingleMessageLimitSize()) {
                     return new AppendMessageResult<>(AppendMessageStatus.MESSAGE_SIZE_EXCEEDED, startWroteOffset, freeSpace, null);
                 }
-
-                workingBuffer.flip();
                 if (recordSize != freeSpace && recordSize + MIN_RECORD_BYTES > freeSpace) {
-                    workingBuffer.limit(freeSpace);
+                    workingBuffer.limit(MIN_RECORD_BYTES);
                     workingBuffer.putInt(MESSAGE_LOG_MAGIC_V1);
                     workingBuffer.put(MessageLogAttrEnum.ATTR_EMPTY_RECORD.getCode());
                     workingBuffer.putLong(System.currentTimeMillis());
-                    targetBuffer.put(workingBuffer.array(), 0, freeSpace);
+                    targetBuffer.put(workingBuffer.array(), 0, MIN_RECORD_BYTES);
+                    int fillZeroLen = freeSpace - MIN_RECORD_BYTES;
+                    if (fillZeroLen > 0) {
+                        targetBuffer.put(fillZero(fillZeroLen));
+                    }
                     return new AppendMessageResult<>(AppendMessageStatus.END_OF_FILE, startWroteOffset, freeSpace, null);
                 } else {
                     int headerSize = recordSize - message.getBodySize();
@@ -336,6 +339,12 @@ public class MessageSegmentContainer implements SegmentContainer<AppendMessageRe
             } finally {
                 lock.unlock();
             }
+        }
+
+        private byte[] fillZero(int len) {
+            byte[] zero = new byte[len];
+            Arrays.fill(zero, (byte) 0);
+            return zero;
         }
     }
 

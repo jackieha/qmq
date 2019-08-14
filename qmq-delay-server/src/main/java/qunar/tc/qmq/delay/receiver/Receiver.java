@@ -206,13 +206,15 @@ public class Receiver {
             message.done(result);
         } catch (Throwable e) {
             LOGGER.error("send response failed id:{} ,msg:{}", message.getMessageId(), message);
-        }
+        } finally {
+			QMon.processTime(message.getSubject(), System.currentTimeMillis() - message.getReceivedTime());
+		}
     }
 
     public static class SendResultPayloadHolder implements PayloadHolder {
         private final List<ReceivedResult> results;
 
-        public SendResultPayloadHolder(List<ReceivedResult> results) {
+        SendResultPayloadHolder(List<ReceivedResult> results) {
             this.results = results;
         }
 

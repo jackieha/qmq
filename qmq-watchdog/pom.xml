@@ -5,18 +5,11 @@
     <parent>
         <groupId>com.qunar.qmq</groupId>
         <artifactId>qmq-parent</artifactId>
-        <version>1.1.0</version>
+        <version>1.1.7</version>
     </parent>
 
     <artifactId>qmq-watchdog</artifactId>
     <packaging>jar</packaging>
-
-    <properties>
-        <java_source_version>1.8</java_source_version>
-        <java_target_version>1.8</java_target_version>
-
-        <maven_deploy_skip>true</maven_deploy_skip>
-    </properties>
 
     <dependencyManagement>
         <dependencies>
@@ -32,6 +25,10 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>qmq-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>qmq-server-common</artifactId>
         </dependency>
         <dependency>
             <groupId>${project.groupId}</groupId>

@@ -35,7 +35,7 @@ public class BrokerStoreImpl implements BrokerStore {
     private static final String QUERY_BROKERS_SQL = "SELECT group_name,role,hostname,INET_NTOA(ip) AS ip,serve_port,sync_port FROM broker WHERE group_name=?";
     private static final String ALL_BROKERS_SQL = "SELECT group_name,role,hostname,INET_NTOA(ip) AS ip,serve_port,sync_port FROM broker";
     private static final String INSERT_BROKER_SQL = "INSERT IGNORE INTO broker(group_name,role,hostname,ip,serve_port,sync_port) VALUES (?,?,?,INET_ATON(?),?,?)";
-    private static final String REPLACE_BROKER_BY_ROLE_SQL = "UPDATE broker SET hostname=?,ip=INET_ATON(?),serve_port=?,sync_port=? WHERE group_name=? AND role=? AND hostname=? AND serve_port=INET_ATON(?)";
+    private static final String REPLACE_BROKER_BY_ROLE_SQL = "UPDATE broker SET hostname=?,ip=INET_ATON(?),serve_port=?,sync_port=? WHERE group_name=? AND role=? AND hostname=? AND serve_port=?";
 
     private static final RowMapper<BrokerMeta> MAPPER = (rs, i) -> {
         final String group = rs.getString("group_name");
@@ -94,6 +94,6 @@ public class BrokerStoreImpl implements BrokerStore {
     public int replaceBrokerByRole(final BrokerMeta oldBroker, final BrokerMeta newBroker) {
         return jdbcTemplate.update(REPLACE_BROKER_BY_ROLE_SQL,
                 newBroker.getHostname(), newBroker.getIp(), newBroker.getServePort(), newBroker.getSyncPort(),
-                oldBroker.getGroup(), oldBroker.getRole(), oldBroker.getHostname(), oldBroker.getSyncPort());
+                oldBroker.getGroup(), oldBroker.getRole(), oldBroker.getHostname(), oldBroker.getServePort());
     }
 }
